@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.services';
 import { UpdateUserDto } from '../application/dto/upDate.dto';
 import { UserDto } from '../application/dto/user.dto';
@@ -12,16 +13,42 @@ export class UserRepository implements IUserRepository {
     private readonly prisma: PrismaService,
     private readonly mapper: UserMapper,
   ) {}
+
   async createUser(user: UserDto): Promise<User> {
-    const data = await this.mapper.toPersistent(user);
-    const result = await this.prisma.user.create({ data });
-    return this.mapper.toDomain(result);
+    try {
+      // Vérifie d'abord si l'email existe déjà
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: user.email },
+      });
+
+      if (existingUser) {
+        throw new ConflictException(
+          `Un utilisateur avec l'email ${user.email} existe déjà`,
+        );
+      }
+
+      const data = await this.mapper.toPersistent(user);
+      const result = await this.prisma.user.create({ data });
+      return this.mapper.toDomain(result);
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          throw new ConflictException(
+            `Un utilisateur avec l'email ${user.email} existe déjà`,
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   async findUserById(id: string): Promise<User | null> {
     try {
       const result = await this.prisma.user.findUnique({ where: { id } });
-      if (!result) return null; // Retourner null si l'utilisateur n'existe pas
+      if (!result) return null;
       return Promise.resolve(this.mapper.toDomain(result));
     } catch (error) {
       throw new Error(
@@ -55,17 +82,45 @@ export class UserRepository implements IUserRepository {
     id: string,
     userDataUpdate: UpdateUserDto,
   ): Promise<User | null> {
-    const user = await this.prisma.user.findUnique({ where: { id: id } });
-    if (!user) return null; // Retourner null si l'utilisateur n'existe pas
-    const upDateData = await this.mapper.toUpdate(userDataUpdate);
-
     try {
+      const user = await this.prisma.user.findUnique({ where: { id } });
+      if (!user) return null;
+
+      // Vérifie si le nouvel email existe déjà pour un autre utilisateur
+      if (userDataUpdate.email) {
+        const existingUser = await this.prisma.user.findFirst({
+          where: {
+            email: userDataUpdate.email,
+            NOT: {
+              id: id,
+            },
+          },
+        });
+
+        if (existingUser) {
+          throw new ConflictException(
+            `Un utilisateur avec l'email ${userDataUpdate.email} existe déjà`,
+          );
+        }
+      }
+
+      const upDateData = await this.mapper.toUpdate(userDataUpdate);
       const userData = await this.prisma.user.update({
         where: { id },
         data: upDateData,
       });
       return this.mapper.toDomain(userData);
     } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          throw new ConflictException(
+            `Un utilisateur avec cet email existe déjà`,
+          );
+        }
+      }
       throw new Error(
         `Erreur lors de la mise à jour de l'utilisateur: ${error}`,
       );
