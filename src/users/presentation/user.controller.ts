@@ -34,8 +34,6 @@ import { UserRole } from '../domain/enums/enum.role';
 @Injectable()
 @Controller('users')
 @ApiTags('Users')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@ApiBearerAuth('access-token')
 export class UserController {
   constructor(
     private readonly createUserUseCase: CreateUserUseCase,
@@ -46,6 +44,8 @@ export class UserController {
   ) {}
 
   @Post('/create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('access-token')
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Créer un nouvel utilisateur (Admin uniquement)',
@@ -94,7 +94,6 @@ export class UserController {
     description: 'Utilisateur trouvé avec succès',
     type: User,
   })
-  @ApiResponse({ status: 401, description: 'Non authentifié' })
   @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   async findUserById(@Param('id') id: string): Promise<User> {
     const user = await this.findByIdUseCase.execute(id);
@@ -114,12 +113,13 @@ export class UserController {
     description: 'Liste des utilisateurs retournée avec succès',
     type: [User],
   })
-  @ApiResponse({ status: 401, description: 'Non authentifié' })
   async findAllUsers(): Promise<User[]> {
     return await this.getAllUsers.execute();
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('access-token')
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Supprimer un utilisateur par son ID (Admin uniquement)',
@@ -147,6 +147,9 @@ export class UserController {
   }
 
   @Put(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('access-token')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Mettre à jour un utilisateur par son ID',
     description: `
@@ -167,6 +170,7 @@ export class UserController {
   })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Non authentifié' })
+  @ApiResponse({ status: 403, description: 'Accès interdit' })
   @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   @ApiResponse({ status: 409, description: 'Email déjà utilisé' })
   async updateUser(

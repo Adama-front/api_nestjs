@@ -13,15 +13,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model User {
-  id        String  @id @default(uuid()) // ID unique (UUID auto-généré)
+  id        String   @id @default(uuid()) // ID unique (UUID auto-généré)
   name      String  
-  email     String  @unique // Email unique
-  password  String  // Mot de passe hashé
-  role      Role    @default(USER) // Rôle par défaut
+  email     String   @unique // Email unique
+  password  String   // Mot de passe hashé
+  role      Role     @default(USER) // Rôle par défaut
   createdAt DateTime @default(now()) // Date de création
   updatedAt DateTime @updatedAt // Mise à jour automatique
+}
+
+model Category {
+  id          String    @id @default(uuid()) // ID unique (UUID auto-généré)
+  name        String    @unique // Nom de la catégorie, unique
+  description String?   // Description facultative
+  createdAt   DateTime  @default(now()) // Date de création
+  updatedAt   DateTime  @updatedAt // Mise à jour automatique
 }
 
 enum Role {
